@@ -211,8 +211,11 @@ export const DesignAnalystNode = memo(({ id, data }: NodeProps<PSDNodeData>) => 
     if (!edge) return null;
     const template = templateRegistry[edge.source];
     if (!template) return null;
-    const containerName = edge.sourceHandle?.replace('slot-bounds-', '') || '';
-    const container = template.containers.find(c => c.name === containerName);
+
+    // [PHASE 5.1]: Update ID alignment - lookup using new slot-out- prefix if needed
+    const containerId = edge.sourceHandle?.replace('slot-out-', '') || edge.sourceHandle?.replace('slot-bounds-', '') || '';
+    // If we're looking up by ID instead of Name
+    const container = template.containers.find(c => c.id === containerId || c.name === containerId);
     return container ? { bounds: container.bounds, name: container.name } : null;
   };
 

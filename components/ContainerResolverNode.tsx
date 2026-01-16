@@ -32,9 +32,6 @@ export const ContainerResolverNode = memo(({ id, data }: NodeProps<PSDNodeData>)
   const designLayers = loadPsdNode?.data?.designLayers || null;
   const globalTemplate = loadPsdNode?.data?.template || null;
 
-  useEffect(() => { return () => unregisterNode(id); }, [id, unregisterNode]);
-  useEffect(() => { updateNodeInternals(id); }, [id, data.isMinimized, channelCount, updateNodeInternals]);
-
   const channels: ChannelState[] = useMemo(() => {
     return Array.from({ length: channelCount }).map((_, index) => {
       const targetHandleId = `target-in-slot-${index}`;
@@ -42,7 +39,6 @@ export const ContainerResolverNode = memo(({ id, data }: NodeProps<PSDNodeData>)
       if (!edge) return { index, status: 'idle', layerCount: 0 };
       if (!globalTemplate) return { index, status: 'error', layerCount: 0, message: 'Data Locked', debugCode: 'DATA_LOCKED' };
 
-      // Strip convention source-out-slot-{name}
       const containerName = edge.sourceHandle?.replace('source-out-slot-', '') || '';
       const containerContext = createContainerContext(globalTemplate, containerName);
       if (!containerContext) return { index, status: 'error', layerCount: 0, message: 'Invalid Ref', debugCode: 'UNKNOWN_ERROR' };
@@ -63,13 +59,19 @@ export const ContainerResolverNode = memo(({ id, data }: NodeProps<PSDNodeData>)
     });
   }, [channelCount, edges, designLayers, globalTemplate, id, resolveLayer]);
 
+  // [PHASE 5.1]: RE-HYDRATION LOGIC
   useEffect(() => {
     channels.forEach(channel => {
-        if (channel.resolvedContext) {
-            registerResolved(id, `source-out-channel-${channel.index}`, channel.resolvedContext as any);
+        if (channel.resolvedContext && channel.containerName) {
+            console.log(`[Resolver] Re-hydrating store for channel ${channel.index} (${channel.containerName})`);
+            registerResolved(id, `resolved-out-${channel.containerName}`, channel.resolvedContext as any);
         }
     });
-  }, [channels, id, registerResolved]);
+    updateNodeInternals(id);
+  }, [channels, id, registerResolved, updateNodeInternals]);
+
+  useEffect(() => { return () => unregisterNode(id); }, [id, unregisterNode]);
+  useEffect(() => { updateNodeInternals(id); }, [id, data.isMinimized, channelCount, updateNodeInternals]);
 
   const handleMinimize = useCallback(() => {
     setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, isMinimized: !n.data.isMinimized } } : n));
@@ -87,7 +89,8 @@ export const ContainerResolverNode = memo(({ id, data }: NodeProps<PSDNodeData>)
                     {channel.status !== 'idle' && <span className="text-[8px] text-slate-500 truncate">{channel.message}</span>}
                 </div>
             </div>
-            <Handle type="source" position={Position.Right} id={`source-out-channel-${channel.index}`} className={`!w-3 !h-3 !-right-1.5 transition-colors duration-200 z-50 ${channel.status === 'resolved' ? '!bg-blue-500 !border-white' : '!bg-slate-700 !border-slate-500'}`} />
+            {/* [PHASE 5.1]: STABLE HANDLE ID ALIGNMENT */}
+            <Handle type="source" position={Position.Right} id={`resolved-out-${channel.containerName || channel.index}`} className={`!w-3 !h-3 !-right-1.5 transition-colors duration-200 z-50 ${channel.status === 'resolved' ? '!bg-blue-500 !border-white' : '!bg-slate-700 !border-slate-500'}`} />
           </div>
         ))}
       </div>

@@ -92,7 +92,11 @@ export const RemapperNode = memo(({ id, data }: NodeProps<PSDNodeData>) => {
             const targetEdge = edges.find(e => e.target === id && e.targetHandle === `target-in-${instId}`);
             
             const source = sourceEdge ? resolvedRegistry[sourceEdge.source]?.[sourceEdge.sourceHandle || ''] : {};
-            const target = targetEdge ? templateRegistry[targetEdge.source]?.containers.find(c => c.name === targetEdge.sourceHandle?.replace('slot-bounds-', '')) : {};
+            const target = targetEdge ? templateRegistry[targetEdge.source]?.containers.find(c => {
+                // [PHASE 5.1]: Update lookup logic to support slot-out- prefix
+                const slotId = targetEdge.sourceHandle?.replace('slot-out-', '') || targetEdge.sourceHandle?.replace('slot-bounds-', '') || '';
+                return c.id === slotId || c.name === slotId;
+            }) : {};
             
             return { instId, source, target: target || { name: 'Unlinked' }, payload: payloadRegistry[id]?.[`result-out-${instId}`] };
         });

@@ -19,9 +19,23 @@ export const TargetSplitterNode = memo(({ id, data }: NodeProps<PSDNodeData>) =>
     return edge ? edge.source : null;
   }, [edges, id]);
 
-  const template = upstreamNodeId ? templateRegistry[upstreamNodeId] : null;
+  const template = useMemo(() => {
+      // Priority: Upstream store lookup, then local node data if re-hydrating
+      if (upstreamNodeId && templateRegistry[upstreamNodeId]) {
+          return templateRegistry[upstreamNodeId];
+      }
+      return data.template || null;
+  }, [upstreamNodeId, templateRegistry, data.template]);
 
-  useEffect(() => { if (template) registerTemplate(id, template); }, [id, template, registerTemplate]);
+  // [PHASE 5.1]: RE-HYDRATION LOGIC
+  useEffect(() => {
+    if (template) {
+        console.log(`[TargetSplitter] Re-hydrating store with template registry for node ${id}`);
+        registerTemplate(id, template);
+        updateNodeInternals(id);
+    }
+  }, [id, template, registerTemplate, updateNodeInternals]);
+
   useEffect(() => { return () => unregisterNode(id); }, [id, unregisterNode]);
   useEffect(() => { updateNodeInternals(id); }, [id, data.isMinimized, template?.containers.length, updateNodeInternals]);
 
@@ -52,7 +66,8 @@ export const TargetSplitterNode = memo(({ id, data }: NodeProps<PSDNodeData>) =>
                         <span className={`text-[10px] font-bold truncate ${isFilled ? theme.text : 'text-slate-400'}`}>{container.name}</span>
                         <span className="text-[8px] text-slate-600 font-mono">{Math.round(container.normalized.w * 100)}% x {Math.round(container.normalized.h * 100)}%</span>
                      </div>
-                     <Handle type="source" position={Position.Right} id={`source-out-bounds-${container.name}`} className="!w-3 !h-3 !bg-emerald-500 !border-white" />
+                     {/* [PHASE 5.1]: STABLE HANDLE ID ALIGNMENT */}
+                     <Handle type="source" position={Position.Right} id={`slot-out-${container.id}`} className="!w-3 !h-3 !bg-emerald-500 !border-white" />
                    </div>
                  );
                })}
