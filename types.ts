@@ -307,6 +307,8 @@ export interface PSDNodeData {
   
   inspectorState?: InspectorState;
 
+  isMinimized?: boolean;
+
   error?: string | null;
 }
 
