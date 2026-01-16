@@ -50,7 +50,7 @@ const INITIAL_EDGES: Edge[] = [
     { id: 'e-load-info', source: 'node-1', target: 'node-info-1', sourceHandle: 'psd-output', targetHandle: 'target-in-psd' },
     { id: 'e-load-template-splitter', source: 'node-1', target: 'node-template-splitter-1', sourceHandle: 'psd-output', targetHandle: 'target-in-psd' },
     { id: 'e-target-target-splitter', source: 'node-target-1', target: 'node-target-splitter-1', sourceHandle: 'source-out-metadata', targetHandle: 'target-in-metadata' },
-    { id: 'e-knowledge-inspector', source: 'node-knowledge-1', target: 'node-inspector-1', sourceHandle: 'knowledge-out', targetHandle: 'knowledge-in' }
+    { id: 'e-knowledge-inspector', source: 'node-knowledge-1', target: 'node-inspector-1', sourceHandle: 'source-out-knowledge', targetHandle: 'target-in-knowledge' }
 ];
 
 const getInitialNodes = (): Node<PSDNodeData>[] => {
@@ -61,14 +61,11 @@ const getInitialNodes = (): Node<PSDNodeData>[] => {
       if (Array.isArray(parsed) && parsed.length > 0) {
         return parsed.map((node: Node<PSDNodeData>) => ({
           ...node,
-          data: {
-            fileName: null, template: null, validation: null, designLayers: null, containerContext: null, mappingContext: null, targetAssembly: null, transformedPayload: null, knowledgeContext: null, previewImages: undefined, error: null, analystInstances: undefined, reviewerInstances: undefined,
-            channelCount: node.data.channelCount, instanceCount: node.data.instanceCount, remapperConfig: node.data.remapperConfig, instanceSettings: node.data.instanceSettings, inspectorState: node.data.inspectorState
-          }
+          data: { ...node.data, fileName: null, template: null, validation: null, designLayers: null }
         }));
       }
     }
-  } catch (err) { console.warn("Failed to retrieve graph layout from storage", err); }
+  } catch (err) {}
   return INITIAL_NODES;
 };
 
@@ -77,63 +74,17 @@ const App: React.FC = () => {
   const [edges, setEdges, onEdgesChange] = useEdgesState(INITIAL_EDGES);
   const edgeReconnectSuccessful = useRef(true);
 
-  useEffect(() => {
-    const saveLayout = setTimeout(() => { if (nodes.length > 0) localStorage.setItem('psd_graph_layout', JSON.stringify(nodes)); }, 1000);
-    return () => clearTimeout(saveLayout);
-  }, [nodes]);
-
-  const onConnect = useCallback(
-    (params: Connection) => {
-      const sourceNode = nodes.find((n) => n.id === params.source);
-      const targetNode = nodes.find((n) => n.id === params.target);
-      const targetHandle = params.targetHandle || '';
-
-      if (sourceNode && targetNode) {
-        if (targetNode.type === 'targetSplitter') {
-          if (targetHandle === 'target-in-metadata' && sourceNode.type !== 'targetTemplate') return;
-        }
-        
-        if (targetNode.type === 'remapper') {
-            if (targetHandle.startsWith('target-in-target-') && sourceNode.type !== 'targetSplitter' && sourceNode.type !== 'designAnalyst') return;
-            if (targetHandle.startsWith('target-in-source-') && sourceNode.type !== 'containerResolver' && sourceNode.type !== 'designAnalyst') return;
-        }
-
-        if (targetNode.type === 'designAnalyst') {
-            if (targetHandle === 'knowledge-in' && sourceNode.type !== 'knowledge') return;
-            if (targetHandle.startsWith('target-in-source-') && sourceNode.type !== 'containerResolver') return;
-            if (targetHandle.startsWith('target-in-target-') && sourceNode.type !== 'targetSplitter') return;
-        }
-
-        if (targetNode.type === 'knowledgeInspector') {
-            if (targetHandle === 'knowledge-in' && sourceNode.type !== 'knowledge') return;
-        }
-
-        if (targetNode.type === 'designReviewer') {
-            if (targetHandle === 'knowledge-in' && sourceNode.type !== 'knowledge' && sourceNode.type !== 'knowledgeInspector') return;
-            if (targetHandle.startsWith('target-in-payload-') && sourceNode.type !== 'remapper' && sourceNode.type !== 'containerResolver') return;
-            if (targetHandle.startsWith('target-in-target-') && sourceNode.type !== 'targetSplitter') return;
-        }
-
-        if (targetNode.type === 'containerPreview') {
-            if (targetHandle.startsWith('target-in-payload-') && sourceNode.type !== 'designReviewer' && sourceNode.type !== 'remapper') return;
-            if (targetHandle.startsWith('target-in-target-') && sourceNode.type !== 'targetSplitter') return;
-        }
-
-        if (targetNode.type === 'exportPsd' && targetHandle.startsWith('target-in-input-')) {
-            if (sourceNode.type !== 'designReviewer' && sourceNode.type !== 'containerPreview') {
-                alert("⛔ Export Locked: Requires Polished input from Design Reviewer or Preview.");
-                return;
-            }
-        }
-      }
-
-      setEdges((eds) => {
-        const cleanEdges = eds.filter((edge) => edge.target !== params.target || edge.targetHandle !== targetHandle);
-        return addEdge(params, cleanEdges);
-      });
-    },
-    [nodes, setEdges]
-  );
+  const onConnect = useCallback((params: Connection) => {
+    const sourceNode = nodes.find((n) => n.id === params.source);
+    const targetNode = nodes.find((n) => n.id === params.target);
+    const targetHandle = params.targetHandle || '';
+    if (sourceNode && targetNode) {
+      if (targetNode.type === 'targetSplitter' && targetHandle === 'target-in-metadata' && sourceNode.type !== 'targetTemplate') return;
+      if (targetNode.type === 'knowledgeInspector' && targetHandle === 'target-in-knowledge' && sourceNode.type !== 'knowledge') return;
+      if (targetNode.type === 'designAnalyst' && targetHandle === 'target-in-knowledge' && sourceNode.type !== 'knowledge') return;
+    }
+    setEdges((eds) => addEdge(params, eds));
+  }, [nodes, setEdges]);
 
   const onReconnectStart = useCallback(() => { edgeReconnectSuccessful.current = false; }, []);
   const onReconnect = useCallback((oldEdge: Edge, newConnection: Connection) => { edgeReconnectSuccessful.current = true; setEdges((els) => reconnectEdge(oldEdge, newConnection, els)); }, [setEdges]);
@@ -153,7 +104,7 @@ const App: React.FC = () => {
             <MiniMap className="bg-slate-800 border-slate-700" nodeColor="#475569" maskColor="rgba(15, 23, 42, 0.6)" />
             <div className="absolute top-4 left-4 z-10 pointer-events-none">
               <h1 className="text-2xl font-bold text-slate-100 tracking-tight">PSD Procedural Logic Engine</h1>
-              <p className="text-slate-400 text-sm">Procedural generation graph for Adobe Photoshop files</p>
+              <p className="text-slate-400 text-sm">Automated Design Synthesis DAG</p>
             </div>
           </ReactFlow>
           <ProjectControls />
