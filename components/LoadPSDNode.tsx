@@ -57,13 +57,13 @@ const TemplatePreview: React.FC<{ metadata: TemplateMetadata }> = ({ metadata })
 };
 
 export const LoadPSDNode = memo(({ data, id }: NodeProps<PSDNodeData>) => {
-  const [isLoading, setIsLoading] = useState(false);
-  // Fixed initialization of localError state to prevent using the variable before its declaration.
+  // Moved to top and fixed self-reference initialization
   const [localError, setLocalError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { setNodes, setEdges } = useReactFlow();
   
-  const { psdRegistry, registerPsd, registerTemplate, unregisterNode, triggerGlobalRefresh } = useProceduralStore();
+  const { psdRegistry, registerPsd, registerTemplate, unregisterNode, removeInstance, triggerGlobalRefresh } = useProceduralStore();
 
   const isDataLoaded = !!data.template;
   const hasBinary = !!psdRegistry[id];
@@ -79,13 +79,23 @@ export const LoadPSDNode = memo(({ data, id }: NodeProps<PSDNodeData>) => {
   }, [id, setNodes]);
 
   const handleDelete = useCallback(() => {
-    // 1. Purge from Procedural Store Registry
+    // 1. Centralized Deletion Logic: Clear instances first
+    if (data.instanceIds) {
+        data.instanceIds.forEach(instId => removeInstance(id, instId));
+    } else if (data.instanceCount) {
+        // Fallback for legacy indexing
+        for (let i = 0; i < data.instanceCount; i++) {
+            removeInstance(id, `legacy-inst-${i}`);
+        }
+    }
+    
+    // 2. Purge Node from Procedural Store Registry
     unregisterNode(id);
     
-    // 2. Remove from React Flow Graph
+    // 3. Final removal from React Flow Graph
     setNodes((nds) => nds.filter((node) => node.id !== id));
     setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id));
-  }, [id, setNodes, setEdges, unregisterNode]);
+  }, [id, data.instanceIds, data.instanceCount, setNodes, setEdges, unregisterNode, removeInstance]);
 
   const handleFileChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -247,9 +257,9 @@ export const LoadPSDNode = memo(({ data, id }: NodeProps<PSDNodeData>) => {
         </div>
       )}
 
-      {localError && (
+      {(localError || data.error) && (
         <div className="mt-2 p-3 bg-red-900/30 border border-red-800 rounded text-xs text-red-200">
-          {localError}
+          {localError || data.error}
         </div>
       )}
 

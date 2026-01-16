@@ -43,13 +43,19 @@ export const BaseNodeShell: React.FC<BaseNodeShellProps> = ({
         ${isMinimized ? 'is-minimized' : ''}
       `}
     >
-      {/* Dynamic Handle Coalescing Styles */}
+      {/* Dynamic Handle Coalescing Styles (Physics refinement) */}
       <style>{`
         .is-minimized .react-flow__handle {
           top: 18px !important;
-          transform: translateY(-50%) !important;
+          transform: translateY(-50%) scale(0.8) !important;
+          transition: all 0.3s ease;
+          opacity: 0.5;
           z-index: 100 !important;
-          opacity: 0.9;
+        }
+        .is-minimized .react-flow__handle:hover {
+          opacity: 1;
+          transform: translateY(-50%) scale(1.2) !important;
+          z-index: 999 !important;
         }
         .is-minimized .react-flow__handle-left {
           left: -4px !important;
