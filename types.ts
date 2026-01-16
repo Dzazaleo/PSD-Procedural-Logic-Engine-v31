@@ -258,6 +258,7 @@ export interface RemapperConfig {
 
 export interface InstanceSettings {
   generationAllowed?: boolean;
+  isMinimized?: boolean;
 }
 
 export interface ChatMessage {
